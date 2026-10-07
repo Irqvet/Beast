@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>B.E.A.S.T. System Interface</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background-color: #000000; overflow: hidden; display: flex; justify-content: center; align-items: center; font-family: Arial, sans-serif; }
+        #voicebox-matrix { width: 2.5in; height: 5.88in; background-color: #000000; display: flex; justify-content: space-between; align-items: center; padding: 0 0.15in; cursor: pointer; position: relative; }
+        .synth-bar { width: 0.5in; height: 0px; background-color: #ff0000; border-radius: 4px; transition: height 0.04s linear, background-color 0.3s ease; box-shadow: 0 0 15px rgba(255, 0, 0, 0.6); }
+        #settings-hud { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.92); color: #ffffff; padding: 20px; z-index: 100; flex-direction: column; justify-content: center; align-items: center; }
+        .hud-control { width: 80%; max-width: 300px; margin: 8px 0; display: flex; flex-direction: column; }
+        .hud-control label { margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; color: #888; }
+        .hud-control select, .hud-control input[type="range"] { width: 100%; background: #111; color: #fff; border: 1px solid #333; padding: 6px; }
+        #save-hud-btn { margin-top: 25px; padding: 12px 24px; background: #ff0000; border: none; color: #fff; font-weight: bold; cursor: pointer; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div id="voicebox-matrix">
+        <div class="synth-bar" id="left-bar"></div>
+        <div class="synth-bar" id="center-bar"></div>
+        <div class="synth-bar" id="right-bar"></div>
+    </div>
+    <div id="settings-hud">
+        <h3 style="letter-spacing: 3px; font-weight: 300; color: #ff0000;">B.E.A.S.T. SYSTEM CALIBRATION</h3>
+        <div class="hud-control">
+            <label>Synthesizer Color</label>
+            <select id="color-select">
+                <option value="#ff0000">Classic Red</option>
+                <option value="#ffaa00">B.E.A.S.T. Amber</option>
+                <option value="#00ff00">Surveillance Green</option>
+                <option value="#0088ff">Cyber Blue</option>
+            </select>
+        </div>
+        <div class="hud-control"><label>Volume</label><input type="range" min="0" max="100" value="85"></div>
+        <div class="hud-control"><label>Pitch Scale</label><input type="range" min="50" max="150" value="100"></div>
+        <div class="hud-control"><label>Acoustic Reverb</label><input type="range" min="0" max="100" value="25"></div>
+        <div class="hud-control"><label>Treble Filter</label><input type="range" min="0" max="100" value="50"></div>
+        <div class="hud-control"><label>Sub-Bass</label><input type="range" min="0" max="100" value="65"></div>
+        <div class="hud-control"><label>Voice Velocity</label><input type="range" min="75" max="150" value="100"></div>
+        <button id="save-hud-btn">Commit Profiles</button>
+    </div>
+    <script>
+        const matrixContainer = document.getElementById('voicebox-matrix');
+        const settingsHud = document.getElementById('settings-hud');
+        const saveHudBtn = document.getElementById('save-hud-btn');
+        const colorSelect = document.getElementById('color-select');
+        const leftBar = document.getElementById('left-bar');
+        const centerBar = document.getElementById('center-bar');
+        const rightBar = document.getElementById('right-bar');
+        let isSpeaking = false;
+        let pulseInterval;
+        let shutdownTimer;
+        let temporaryContact = null;
+        matrixContainer.addEventListener('click', (e) => { if (e.detail === 1) { settingsHud.style.display = 'flex'; } });
+        saveHudBtn.addEventListener('click', () => { settingsHud.style.display = 'none'; });
+        matrixContainer.addEventListener('mousedown', startPress);
+        matrixContainer.addEventListener('touchstart', startPress);
+        matrixContainer.addEventListener('mouseup', endPress);
+        matrixContainer.addEventListener('touchend', endPress);
+        function startPress() { shutdownTimer = setTimeout(() => { document.body.innerHTML = ""; document.body.style.backgroundColor = "#000000"; }, 1500); }
+        function endPress() { clearTimeout(shutdownTimer); }
+        colorSelect.addEventListener('change', (e) => {
+            const hexColor = e.target.value;
+            document.querySelectorAll('.synth-bar').forEach(bar => {
+                bar.style.backgroundColor = hexColor;
+                bar.style.boxShadow = `0 0 15px ${hexColor}`;
+            });
+            saveHudBtn.style.backgroundColor = hexColor;
+        });
+        function runVisualizerFrame() {
+            if (!isSpeaking) { leftBar.style.height = "0px"; centerBar.style.height = "0px"; rightBar.style.height = "0px"; return; }
+            let centerPeak = Math.floor(Math.random() * 300) + 70;
+            let outerPeak = centerPeak * 0.80;
+            centerBar.style.height = centerPeak + "px";
+            leftBar.style.height = outerPeak + "px";
+            rightBar.style.height = outerPeak + "px";
+        }
+        function triggerSpeechBurst(durationMs = 3500) {
+            if (isSpeaking) clearInterval(pulseInterval);
+            isSpeaking = true;
+            pulseInterval = setInterval(runVisualizerFrame, 50);
+            setTimeout(() => { isSpeaking = false; clearInterval(pulseInterval); runVisualizerFrame(); }, durationMs);
+        }
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (SpeechRecognition) {
+            const recognizer = new SpeechRecognition();
+            recognizer.continuous = true;
+            recognizer.interimResults = false;
+            recognizer.lang = 'en-US';
+            window.addEventListener('load', () => { try { recognizer.start(); } catch(e) { console.log(e); } });
+            recognizer.onresult = (event) => {
+                const lastResultIndex = event.results.length - 1;
+                const spokenText = event.results[lastResultIndex].transcript.trim().toLowerCase();
+                if (spokenText.startsWith('beast')) {
+                    const coreCommand = spokenText.replace('beast', '').trim();
+                    processCarCommands(coreCommand);
+                }
+            };
+            recognizer.onend = () => { try { recognizer.start(); } catch(e) { console.log(e); } };
+        }
+        function processCarCommands(command) {
+            if (command.includes('call')) {
+                const contact = command.replace('call', '').trim();
+                executeCallCommand(contact);
+            } else if (command.includes('route to') || command.includes('fastest route to')) {
+                const destination = command.replace(/.*route to/, '').trim();
+                executeNavigationCommand(destination);
+            } else if (temporaryContact && (command.includes('cell') || command.includes('home') || command.includes('work'))) {
+                handleClarificationReply(command);
+            } else {
+                speakOutput("System grid online. Instruction unrecognized.");
+            }
+        }
+        function executeCallCommand(contactInput) {
+            const contact = mockDatabaseFetch(contactInput);
+            if (!contact) { speakOutput("Specified voice target missing from communication records."); return; }
+            if (contact.cell && contact.home && contact.work) {
+                temporaryContact = contact;
+                speakOutput(`Would you like for me to dial ${contact.name}'s Cell, Home, or Work number?`);
+            } else {
+                dialNumber(contact.cell || contact.home);
+            }
+        }
+        function handleClarificationReply(replyText) {
+            if (!temporaryContact) return;
+            const text = replyText.toLowerCase();
+            let target = "";
+            if (text.includes("cell")) target = temporaryContact.cell;
+            else if (text.includes("home")) target = temporaryContact.home;
+            else if (text.includes("work")) target = temporaryContact.work;
+            if (target) { dialNumber(target); temporaryContact = null; } else { speakOutput("Clarification error. State Cell, Home, or Work."); }
+        }
+        function executeNavigationCommand(contactInput) {
+            const contact = mockDatabaseFetch(contactInput);
+            if (!contact || !contact.address) { speakOutput("Navigation target coordinates unavailable in memory banks."); return; }
+            speakOutput(`Vector locked. Launching automated navigation mapping to ${contact.name}'s location.`);
+            setTimeout(() => {
+                const encodedLoc = encodeURIComponent(contact.address);
+                window.location.href = `intent://google.navigation:q=${encodedLoc}&mode=d#Intent;package=com.google.android.apps.maps;scheme=google.navigation;end`;
+            }, 2500);
+        }
+        function dialNumber(num) { window.location.href = `intent://#Intent;scheme=tel;data=${num};package=com.google.android.dialer;end`; }
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const incomingCaller = urlParams.get('caller');
+            if (incomingCaller) { speakOutput(`Warning. Communications intercept detected. Incoming audio feed from: ${incomingCaller}.`); }
+        });
+        function mockDatabaseFetch(name) {
+            if (name.toLowerCase().includes('jeremy')) {
+                return { name: "Jeremy", cell: "5550198", home: "5550244", work: "5550311", address: "1600 Amphitheatre Parkway, Mountain View, CA" };
+            }
+            return null;
+        }
+        function speakOutput(phrase) { console.log("B.E.A.S.T.: " + phrase); triggerSpeechBurst(4000); }
+        matrixContainer.addEventListener('dblclick', () => { triggerSpeechBurst(3000); });
+    </script>
+</body>
+</html>
